@@ -15,6 +15,14 @@ from game_log import GameLog
 _game_log: Optional[GameLog] = None
 
 
+def _get_log(app: Flask) -> Optional[GameLog]:
+    """Return the GameLog from app config or the module-level fallback."""
+    log = app.config.get("GAME_LOG")
+    if log is None:
+        log = _game_log
+    return log
+
+
 def create_app(game_log: Optional[GameLog] = None) -> Flask:
     """Create and configure the Flask application.
 
@@ -32,7 +40,8 @@ def create_app(game_log: Optional[GameLog] = None) -> Flask:
     """
     app = Flask(__name__, template_folder="templates")
 
-    log = game_log or _game_log
+    if game_log is not None:
+        app.config["GAME_LOG"] = game_log
 
     @app.route("/")
     def index():  # type: ignore[return]
@@ -40,9 +49,7 @@ def create_app(game_log: Optional[GameLog] = None) -> Flask:
 
     @app.route("/api/events")
     def api_events():  # type: ignore[return]
-        nonlocal log
-        if log is None:
-            log = _game_log
+        log = _get_log(app)
         if log is None:
             return jsonify({"events": [], "total": 0, "game_number": 0})
 

@@ -1,0 +1,220 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "One-click deployment for the UNO Scoreboard Analyzer. Provisions an Azure OpenAI resource with a gpt-4o-mini model deployment and an Azure Container Instance running the analyzer + live web dashboard."
+  },
+  "parameters": {
+    "scoreboardUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "The overlays.uno scoreboard output URL to monitor (e.g. https://app.overlays.uno/output/abc123)."
+      }
+    },
+    "openaiApiKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Your own OpenAI API key. Leave blank to use the Azure OpenAI resource deployed by this template."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "westus2",
+      "metadata": {
+        "description": "Azure region for all resources. Default is West US 2 (near Redmond, WA)."
+      },
+      "allowedValues": [
+        "westus2",
+        "westus3",
+        "westus",
+        "eastus",
+        "eastus2",
+        "northcentralus",
+        "southcentralus",
+        "canadaeast",
+        "swedencentral",
+        "uksouth",
+        "francecentral",
+        "australiaeast",
+        "japaneast"
+      ]
+    },
+    "openaiModelName": {
+      "type": "string",
+      "defaultValue": "gpt-4o-mini",
+      "metadata": {
+        "description": "The OpenAI model to deploy in Azure OpenAI."
+      },
+      "allowedValues": [
+        "gpt-4o-mini",
+        "gpt-4o",
+        "gpt-4"
+      ]
+    },
+    "openaiModelVersion": {
+      "type": "string",
+      "defaultValue": "2024-07-18",
+      "metadata": {
+        "description": "Version of the OpenAI model to deploy."
+      }
+    },
+    "containerImageSource": {
+      "type": "string",
+      "defaultValue": "ghcr.io/rafaelzacarias/uno-scoreboard-analyzer:latest",
+      "metadata": {
+        "description": "Container image to deploy. Defaults to the pre-built GitHub Container Registry image."
+      }
+    },
+    "pollInterval": {
+      "type": "int",
+      "defaultValue": 10,
+      "minValue": 3,
+      "maxValue": 120,
+      "metadata": {
+        "description": "Seconds between scoreboard polls."
+      }
+    }
+  },
+  "variables": {
+    "uniqueSuffix": "[uniqueString(resourceGroup().id)]",
+    "openaiAccountName": "[concat('unoai', variables('uniqueSuffix'))]",
+    "deploymentName": "[parameters('openaiModelName')]",
+    "containerGroupName": "[concat('uno-analyzer-', variables('uniqueSuffix'))]",
+    "useAzureOpenAI": "[empty(parameters('openaiApiKey'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.CognitiveServices/accounts",
+      "apiVersion": "2024-10-01",
+      "name": "[variables('openaiAccountName')]",
+      "location": "[parameters('location')]",
+      "kind": "OpenAI",
+      "sku": {
+        "name": "S0"
+      },
+      "properties": {
+        "customSubDomainName": "[variables('openaiAccountName')]",
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts/deployments",
+      "apiVersion": "2024-10-01",
+      "name": "[concat(variables('openaiAccountName'), '/', variables('deploymentName'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName'))]"
+      ],
+      "sku": {
+        "name": "GlobalStandard",
+        "capacity": 10
+      },
+      "properties": {
+        "model": {
+          "format": "OpenAI",
+          "name": "[parameters('openaiModelName')]",
+          "version": "[parameters('openaiModelVersion')]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.ContainerInstance/containerGroups",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('containerGroupName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('openaiAccountName'), variables('deploymentName'))]"
+      ],
+      "properties": {
+        "osType": "Linux",
+        "restartPolicy": "Always",
+        "ipAddress": {
+          "type": "Public",
+          "ports": [
+            {
+              "protocol": "TCP",
+              "port": 8080
+            }
+          ],
+          "dnsNameLabel": "[variables('containerGroupName')]"
+        },
+        "containers": [
+          {
+            "name": "uno-analyzer",
+            "properties": {
+              "image": "[parameters('containerImageSource')]",
+              "resources": {
+                "requests": {
+                  "cpu": 0.5,
+                  "memoryInGB": 0.5
+                }
+              },
+              "ports": [
+                {
+                  "protocol": "TCP",
+                  "port": 8080
+                }
+              ],
+              "environmentVariables": [
+                {
+                  "name": "SCOREBOARD_URL",
+                  "value": "[parameters('scoreboardUrl')]"
+                },
+                {
+                  "name": "POLL_INTERVAL",
+                  "value": "[string(parameters('pollInterval'))]"
+                },
+                {
+                  "name": "WEB_PORT",
+                  "value": "8080"
+                },
+                {
+                  "name": "OPENAI_API_KEY",
+                  "secureValue": "[if(variables('useAzureOpenAI'), '', parameters('openaiApiKey'))]"
+                },
+                {
+                  "name": "AZURE_OPENAI_ENDPOINT",
+                  "value": "[if(variables('useAzureOpenAI'), reference(resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName')), '2024-10-01').endpoint, '')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_KEY",
+                  "secureValue": "[if(variables('useAzureOpenAI'), listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName')), '2024-10-01').key1, '')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_DEPLOYMENT",
+                  "value": "[if(variables('useAzureOpenAI'), variables('deploymentName'), '')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_API_VERSION",
+                  "value": "2024-12-01-preview"
+                },
+                {
+                  "name": "OPENAI_MODEL",
+                  "value": "[parameters('openaiModelName')]"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "dashboardUrl": {
+      "type": "string",
+      "value": "[concat('http://', reference(resourceId('Microsoft.ContainerInstance/containerGroups', variables('containerGroupName')), '2023-05-01').ipAddress.fqdn, ':8080')]"
+    },
+    "dashboardIp": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerInstance/containerGroups', variables('containerGroupName')), '2023-05-01').ipAddress.ip]"
+    },
+    "azureOpenAiEndpoint": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName')), '2024-10-01').endpoint]"
+    },
+    "azureOpenAiResourceName": {
+      "type": "string",
+      "value": "[variables('openaiAccountName')]"
+    }
+  }
+}

@@ -1,10 +1,10 @@
 """Entry point for the UNO Scoreboard Analyzer.
 
 Usage:
-    python main.py <scoreboard_url>
+    python main.py <uno_token>
 
 Example:
-    python main.py https://app.overlays.uno/output/0ZtIYoE5lp1X1rceb5MV5s
+    python main.py 0ZtIYoE5lp1X1rceb5MV5s
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from analyzer import get_insight
-from scraper import ScoreboardState, detect_changes, fetch_scoreboard
+from scraper import ScoreboardState, build_api_url, detect_changes, fetch_scoreboard
 
 load_dotenv()
 
@@ -34,12 +34,6 @@ UNO_TICKER_TOKEN: str = os.getenv("UNO_TICKER_TOKEN", "")
 MAX_HISTORY_SIZE: int = 20
 
 
-def validate_url(url: str) -> None:
-    """Raise :class:`ValueError` if *url* does not look like an overlays.uno output URL."""
-    if not url.startswith("http"):
-        raise ValueError(f"Invalid URL: {url!r}. Must start with 'http' or 'https'.")
-
-
 def run(url: str) -> None:
     """Main monitoring loop.
 
@@ -49,9 +43,8 @@ def run(url: str) -> None:
     Parameters
     ----------
     url:
-        Full URL to the overlays.uno output page.
+        Full Singular.live control-app API URL.
     """
-    validate_url(url)
 
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
@@ -114,22 +107,24 @@ def run(url: str) -> None:
 
 def main() -> None:
     """Parse CLI arguments and start the monitoring loop."""
-    if len(sys.argv) != 2:
-        print(
-            "Usage: python main.py <scoreboard_url>\n"
-            "Example: python main.py https://app.overlays.uno/output/0ZtIYoE5lp1X1rceb5MV5s",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    token = os.getenv("UNO_TOKEN", "")
+    if not token:
+        if len(sys.argv) == 2:
+            token = sys.argv[1]
+        else:
+            print(
+                "Usage: python main.py <uno_token>\n"
+                "Example: python main.py 0ZtIYoE5lp1X1rceb5MV5s\n"
+                "Or set the UNO_TOKEN environment variable.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
-    url = sys.argv[1]
+    url = build_api_url(token)
     try:
         run(url)
     except KeyboardInterrupt:
         print("\n👋 Monitoring stopped.")
-    except ValueError as exc:
-        print(f"[ERROR] {exc}", file=sys.stderr)
-        sys.exit(1)
 
 
 if __name__ == "__main__":

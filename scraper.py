@@ -1,13 +1,16 @@
-"""Scraper module for fetching and parsing UNO scoreboard overlay pages."""
+"""Scraper module for fetching and parsing Singular.live control-app JSON."""
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 import requests
-from bs4 import BeautifulSoup
+
+# Base URL template – the token is inserted at runtime.
+API_URL_TEMPLATE = "https://app.singular.live/apiv2/controlapps/{token}/control"
 
 
 @dataclass
@@ -19,7 +22,8 @@ class ScoreboardState:
     home_score: str = ""
     away_score: str = ""
     game_time: str = ""
-    raw_text: str = ""
+    period: str = ""
+    raw_payload: dict = field(default_factory=dict)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, ScoreboardState):
@@ -30,6 +34,7 @@ class ScoreboardState:
             and self.home_score == other.home_score
             and self.away_score == other.away_score
             and self.game_time == other.game_time
+            and self.period == other.period
         )
 
     def __repr__(self) -> str:
@@ -39,133 +44,120 @@ class ScoreboardState:
             f"away_team={self.away_team!r}, "
             f"home_score={self.home_score!r}, "
             f"away_score={self.away_score!r}, "
-            f"game_time={self.game_time!r})"
+            f"game_time={self.game_time!r}, "
+            f"period={self.period!r})"
         )
 
     def summary(self) -> str:
         """Return a human-readable summary of the current scoreboard state."""
+        period_str = f" | Period: {self.period}" if self.period else ""
         return (
             f"{self.home_team} {self.home_score} x {self.away_score} {self.away_team}"
-            f" | Time: {self.game_time}"
+            f" | Time: {self.game_time}{period_str}"
         )
 
 
-# CSS selectors used to locate scoreboard elements inside the overlay page.
-# These defaults target common class names used by overlays.uno scoreboard
-# templates. Override them if the page uses different identifiers.
-DEFAULT_SELECTORS = {
-    "home_team": [
-        "[class*='home'][class*='name']",
-        "[class*='team-home'] [class*='name']",
-        "[class*='home-team']",
-        "[data-team='home'] [class*='name']",
-        "[class*='teamName']:first-child",
-    ],
-    "away_team": [
-        "[class*='away'][class*='name']",
-        "[class*='team-away'] [class*='name']",
-        "[class*='away-team']",
-        "[data-team='away'] [class*='name']",
-        "[class*='teamName']:last-child",
-    ],
-    "home_score": [
-        "[class*='home'][class*='score']",
-        "[class*='team-home'] [class*='score']",
-        "[class*='score-home']",
-        "[data-team='home'] [class*='score']",
-    ],
-    "away_score": [
-        "[class*='away'][class*='score']",
-        "[class*='team-away'] [class*='score']",
-        "[class*='score-away']",
-        "[data-team='away'] [class*='score']",
-    ],
-    "game_time": [
-        "[class*='clock']",
-        "[class*='timer']",
-        "[class*='time']",
-        "[class*='period']",
-    ],
-}
+def build_api_url(token: str) -> str:
+    """Build the Singular.live control-app API URL from a token.
+
+    Parameters
+    ----------
+    token:
+        The UNO / Singular.live control-app token.
+
+    Returns
+    -------
+    str
+        Fully-qualified API URL.
+    """
+    return API_URL_TEMPLATE.format(token=token)
 
 
-def _first_text(soup: BeautifulSoup, selectors: list[str]) -> str:
-    """Try each CSS selector in order and return the first non-empty text found."""
-    for selector in selectors:
-        try:
-            element = soup.select_one(selector)
-            if element:
-                text = element.get_text(strip=True)
-                if text:
-                    return text
-        except Exception:
-            continue
-    return ""
+def _resolve_period_name(payload: dict, period_key: str) -> str:
+    """Map a period key like ``p1`` to its display name using the payload setup fields."""
+    mapping = {
+        "p1": payload.get("PeriodSetupP1Name", "1st"),
+        "p2": payload.get("PeriodSetupP2Name", "2nd"),
+        "ot1": payload.get("PeriodSetupOT1Name", "OT"),
+        "ot2": payload.get("PeriodSetupOT2Name", "OT2"),
+    }
+    return mapping.get(period_key, period_key)
+
+
+def parse_scoreboard_json(data: list[dict[str, Any]]) -> ScoreboardState:
+    """Parse the Singular.live control-app JSON response.
+
+    The response is a JSON array of sub-compositions.  The ``Content``
+    sub-composition contains the scoreboard payload with keys such as
+    ``NameTeam1``, ``GoalsTeam1``, ``MatchTimeText``, etc.
+
+    Parameters
+    ----------
+    data:
+        Parsed JSON list (array of sub-composition dicts).
+
+    Returns
+    -------
+    ScoreboardState
+        Extracted scoreboard data.  Fields that could not be found will be
+        empty strings.
+    """
+    # Find the "Content" sub-composition
+    payload: dict[str, Any] = {}
+    for entry in data:
+        if entry.get("subCompositionName") == "Content":
+            payload = entry.get("payload", {})
+            break
+
+    period_key = str(payload.get("Period", ""))
+    period_name = _resolve_period_name(payload, period_key)
+
+    return ScoreboardState(
+        home_team=str(payload.get("NameTeam1", "")),
+        away_team=str(payload.get("NameTeam2", "")),
+        home_score=str(payload.get("GoalsTeam1", "")),
+        away_score=str(payload.get("GoalsTeam2", "")),
+        game_time=str(payload.get("MatchTimeText", "")),
+        period=period_name,
+        raw_payload=payload,
+    )
 
 
 def fetch_scoreboard(url: str, timeout: int = 15) -> ScoreboardState:
-    """Fetch the scoreboard overlay page and return a parsed :class:`ScoreboardState`.
+    """Fetch the Singular.live control-app JSON and return a parsed state.
 
     Parameters
     ----------
     url:
-        Full URL to the overlays.uno output page, e.g.
-        ``https://app.overlays.uno/output/0ZtIYoE5lp1X1rceb5MV5s``.
+        Full API URL, e.g.
+        ``https://app.singular.live/apiv2/controlapps/<TOKEN>/control``.
     timeout:
         HTTP request timeout in seconds.
 
     Returns
     -------
     ScoreboardState
-        Parsed scoreboard data. Fields that could not be extracted will be
-        empty strings.
+        Parsed scoreboard data.
 
     Raises
     ------
     requests.RequestException
         If the HTTP request fails.
+    ValueError
+        If the response is not valid JSON.
     """
     headers = {
-        # Standard browser User-Agent so the overlay page does not reject the request.
-        "User-Agent": (
-            "Mozilla/5.0 (X11; Linux x86_64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept": "application/json",
     }
 
     response = requests.get(url, headers=headers, timeout=timeout)
     response.raise_for_status()
 
-    return parse_scoreboard_html(response.text)
+    data = response.json()
+    if not isinstance(data, list):
+        raise ValueError(f"Expected a JSON array, got {type(data).__name__}")
 
-
-def parse_scoreboard_html(html: str) -> ScoreboardState:
-    """Parse raw HTML from an overlays.uno output page into a :class:`ScoreboardState`.
-
-    Parameters
-    ----------
-    html:
-        Raw HTML string returned by the overlay page.
-
-    Returns
-    -------
-    ScoreboardState
-        Extracted scoreboard data.
-    """
-    soup = BeautifulSoup(html, "html.parser")
-
-    state = ScoreboardState(
-        home_team=_first_text(soup, DEFAULT_SELECTORS["home_team"]),
-        away_team=_first_text(soup, DEFAULT_SELECTORS["away_team"]),
-        home_score=_first_text(soup, DEFAULT_SELECTORS["home_score"]),
-        away_score=_first_text(soup, DEFAULT_SELECTORS["away_score"]),
-        game_time=_first_text(soup, DEFAULT_SELECTORS["game_time"]),
-        raw_text=soup.get_text(separator=" ", strip=True),
-    )
-
-    return state
+    return parse_scoreboard_json(data)
 
 
 def detect_changes(
@@ -211,6 +203,11 @@ def detect_changes(
     if previous.away_team != current.away_team:
         changes.append(
             f"Away team changed: {previous.away_team!r} → {current.away_team!r}"
+        )
+
+    if previous.period != current.period:
+        changes.append(
+            f"Period changed: {previous.period!r} → {current.period!r}"
         )
 
     return changes

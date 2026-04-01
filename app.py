@@ -5,7 +5,7 @@ Usage (container / Azure):
     python app.py
 
 Required environment variables:
-    SCOREBOARD_URL   – overlays.uno output URL
+    UNO_TOKEN        – Singular.live / UNO control-app token
     OPENAI_API_KEY   – OpenAI API key  (or set AZURE_OPENAI_* vars)
 
 Optional Azure OpenAI variables (used instead of OPENAI_API_KEY when set):
@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 
 from analyzer import get_insight
 from game_log import EventType, GameLog
-from scraper import ScoreboardState, detect_changes, fetch_scoreboard
+from scraper import ScoreboardState, build_api_url, detect_changes, fetch_scoreboard
 from web_app import create_app, set_game_log
 
 load_dotenv()
@@ -170,22 +170,20 @@ def analyzer_loop(url: str, game_log: GameLog) -> None:
 
 def main() -> None:
     """Start both the analyzer loop and the web dashboard."""
-    url = os.getenv("SCOREBOARD_URL", "")
-    if not url:
+    token = os.getenv("UNO_TOKEN", "")
+    if not token:
         if len(sys.argv) >= 2:
-            url = sys.argv[1]
+            token = sys.argv[1]
         else:
             print(
-                "ERROR: Set the SCOREBOARD_URL environment variable or pass it as "
+                "ERROR: Set the UNO_TOKEN environment variable or pass it as "
                 "a CLI argument.\n"
-                "  python app.py <scoreboard_url>",
+                "  python app.py <uno_token>",
                 file=sys.stderr,
             )
             sys.exit(1)
 
-    if not url.startswith("http"):
-        print(f"ERROR: Invalid URL: {url!r}", file=sys.stderr)
-        sys.exit(1)
+    url = build_api_url(token)
 
     game_log = GameLog()
     set_game_log(game_log)

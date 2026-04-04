@@ -2,7 +2,7 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
-    "description": "One-click deployment for the UNO Scoreboard Analyzer. Provisions an Azure OpenAI resource with a gpt-4o-mini model deployment and an Azure Container Instance running the analyzer + live web dashboard."
+    "description": "One-click deployment for the UNO Scoreboard Analyzer. Optionally provisions an Azure OpenAI resource with a gpt-4o-mini model deployment and an Azure Container Instance running the analyzer + live web dashboard."
   },
   "parameters": {
     "scoreboardUrl": {
@@ -15,7 +15,28 @@
       "type": "securestring",
       "defaultValue": "",
       "metadata": {
-        "description": "Optional: Your own OpenAI API key. Leave blank to use the Azure OpenAI resource deployed by this template."
+        "description": "Optional: Your own OpenAI API key. Leave blank to use Azure OpenAI (either an existing deployment via azureOpenAiEndpoint/azureOpenAiKey, or a new resource provisioned by this template)."
+      }
+    },
+    "azureOpenAiEndpoint": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Endpoint URL of an existing Azure OpenAI resource (e.g. https://my-resource.openai.azure.com). When provided together with azureOpenAiKey, no new Azure OpenAI resource is created."
+      }
+    },
+    "azureOpenAiKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Key for the existing Azure OpenAI resource specified by azureOpenAiEndpoint."
+      }
+    },
+    "unoTickerToken": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: overlays.uno ticker overlay control token. When set, LLM insights are pushed to the ticker overlay as scrolling messages."
       }
     },
     "location": {
@@ -44,7 +65,7 @@
       "type": "string",
       "defaultValue": "gpt-4o-mini",
       "metadata": {
-        "description": "The OpenAI model to deploy in Azure OpenAI."
+        "description": "The OpenAI model to deploy in Azure OpenAI (only used when this template provisions a new Azure OpenAI resource)."
       },
       "allowedValues": [
         "gpt-4o-mini",
@@ -56,7 +77,7 @@
       "type": "string",
       "defaultValue": "2024-07-18",
       "metadata": {
-        "description": "Version of the OpenAI model to deploy."
+        "description": "Version of the OpenAI model to deploy (only used when this template provisions a new Azure OpenAI resource)."
       }
     },
     "containerImageSource": {
@@ -81,10 +102,13 @@
     "openaiAccountName": "[concat('unoai', variables('uniqueSuffix'))]",
     "deploymentName": "[parameters('openaiModelName')]",
     "containerGroupName": "[concat('uno-analyzer-', variables('uniqueSuffix'))]",
-    "useAzureOpenAI": "[empty(parameters('openaiApiKey'))]"
+    "useExternalAzureOpenAI": "[and(not(empty(parameters('azureOpenAiEndpoint'))), not(empty(parameters('azureOpenAiKey'))))]",
+    "deployAzureOpenAI": "[and(empty(parameters('openaiApiKey')), not(variables('useExternalAzureOpenAI')))]",
+    "useAzureOpenAI": "[or(variables('useExternalAzureOpenAI'), variables('deployAzureOpenAI'))]"
   },
   "resources": [
     {
+      "condition": "[variables('deployAzureOpenAI')]",
       "type": "Microsoft.CognitiveServices/accounts",
       "apiVersion": "2024-10-01",
       "name": "[variables('openaiAccountName')]",
@@ -99,6 +123,7 @@
       }
     },
     {
+      "condition": "[variables('deployAzureOpenAI')]",
       "type": "Microsoft.CognitiveServices/accounts/deployments",
       "apiVersion": "2024-10-01",
       "name": "[concat(variables('openaiAccountName'), '/', variables('deploymentName'))]",
@@ -174,11 +199,11 @@
                 },
                 {
                   "name": "AZURE_OPENAI_ENDPOINT",
-                  "value": "[if(variables('useAzureOpenAI'), reference(resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName')), '2024-10-01').endpoint, '')]"
+                  "value": "[if(variables('useExternalAzureOpenAI'), parameters('azureOpenAiEndpoint'), if(variables('deployAzureOpenAI'), reference(resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName')), '2024-10-01').endpoint, ''))]"
                 },
                 {
                   "name": "AZURE_OPENAI_KEY",
-                  "secureValue": "[if(variables('useAzureOpenAI'), listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName')), '2024-10-01').key1, '')]"
+                  "secureValue": "[if(variables('useExternalAzureOpenAI'), parameters('azureOpenAiKey'), if(variables('deployAzureOpenAI'), listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName')), '2024-10-01').key1, ''))]"
                 },
                 {
                   "name": "AZURE_OPENAI_DEPLOYMENT",
@@ -191,6 +216,10 @@
                 {
                   "name": "OPENAI_MODEL",
                   "value": "[parameters('openaiModelName')]"
+                },
+                {
+                  "name": "UNO_TICKER_TOKEN",
+                  "secureValue": "[parameters('unoTickerToken')]"
                 }
               ]
             }
@@ -210,11 +239,11 @@
     },
     "azureOpenAiEndpoint": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName')), '2024-10-01').endpoint]"
+      "value": "[if(variables('deployAzureOpenAI'), reference(resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName')), '2024-10-01').endpoint, parameters('azureOpenAiEndpoint'))]"
     },
     "azureOpenAiResourceName": {
       "type": "string",
-      "value": "[variables('openaiAccountName')]"
+      "value": "[if(variables('deployAzureOpenAI'), variables('openaiAccountName'), '')]"
     }
   }
 }

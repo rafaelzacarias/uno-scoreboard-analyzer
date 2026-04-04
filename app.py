@@ -39,6 +39,7 @@ POLL_INTERVAL: int = int(os.getenv("POLL_INTERVAL", "10"))
 REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "15"))
 OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 WEB_PORT: int = int(os.getenv("WEB_PORT", "8080"))
+UNO_TICKER_TOKEN: str = os.getenv("UNO_TICKER_TOKEN", "")
 MAX_HISTORY_SIZE: int = 20
 
 # Scores that indicate a game reset
@@ -106,6 +107,9 @@ def analyzer_loop(url: str, game_log: GameLog) -> None:
     game_log.add(EventType.INFO, f"Monitoring scoreboard: {url}")
     game_log.add(EventType.INFO, f"Poll interval: {POLL_INTERVAL}s | Model: {model}")
 
+    if UNO_TICKER_TOKEN:
+        game_log.add(EventType.INFO, "UNO ticker overlay integration configured.")
+
     previous: Optional[ScoreboardState] = None
     history: list[ScoreboardState] = []
 
@@ -150,6 +154,7 @@ def analyzer_loop(url: str, game_log: GameLog) -> None:
                         history=history if history else None,
                         model=model,
                         client=client,
+                        uno_ticker_token=UNO_TICKER_TOKEN or None,
                     )
                     game_log.add(EventType.INSIGHT, insight)
                 except Exception as exc:

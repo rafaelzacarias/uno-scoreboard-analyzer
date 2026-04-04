@@ -8,6 +8,7 @@ from typing import Optional
 from openai import OpenAI
 
 from scraper import ScoreboardState
+from uno_ticker import push_ticker_messages
 
 _SYSTEM_PROMPT = """\
 You are a sports analyst specialising in handball. You are watching a live \
@@ -75,6 +76,7 @@ def get_insight(
     history: Optional[list[ScoreboardState]] = None,
     model: str = "gpt-4o-mini",
     client: Optional[OpenAI] = None,
+    uno_ticker_token: Optional[str] = None,
 ) -> str:
     """Call the OpenAI API and return a real-time game insight string.
 
@@ -92,6 +94,10 @@ def get_insight(
         Optional pre-configured :class:`openai.OpenAI` instance. If omitted,
         one is created automatically using the ``OPENAI_API_KEY`` environment
         variable.
+    uno_ticker_token:
+        Optional overlays.uno ticker overlay control token.  When set, the
+        generated insight is pushed to the ticker overlay after a successful
+        LLM call.
 
     Returns
     -------
@@ -118,4 +124,9 @@ def get_insight(
         temperature=0.7,
     )
 
-    return response.choices[0].message.content.strip()
+    insight = response.choices[0].message.content.strip()
+
+    if uno_ticker_token:
+        push_ticker_messages(uno_ticker_token, [insight])
+
+    return insight

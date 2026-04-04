@@ -31,6 +31,7 @@ Real-time handball game analyzer that monitors a [overlays.uno](https://app.over
 - 🌐 **Live web dashboard** – auto-refreshing browser page showing all events, filterable by type or game
 - ☁️ **One-click Azure deploy** – ARM template provisions everything (Azure OpenAI model + container)
 - 🕹️ **Simple CLI** – one command to start, `Ctrl+C` to stop
+- 📺 **Ticker overlay integration** – optionally push insights to an overlays.uno ticker overlay as scrolling messages
 
 ## Requirements
 
@@ -94,6 +95,7 @@ All options can be set in a `.env` file (copy from `.env.example`):
 | `POLL_INTERVAL` | `10` | Seconds between scoreboard checks |
 | `REQUEST_TIMEOUT` | `15` | HTTP request timeout in seconds |
 | `WEB_PORT` | `8080` | Port for the web dashboard |
+| `UNO_TICKER_TOKEN` | | overlays.uno ticker overlay token (optional – enables pushing insights to a ticker overlay) |
 
 ## Project structure
 
@@ -105,6 +107,7 @@ uno-scoreboard-analyzer/
 ├── analyzer.py        # Builds prompts and calls the OpenAI API
 ├── game_log.py        # Thread-safe in-memory event log
 ├── web_app.py         # Flask web dashboard
+├── uno_ticker.py      # Pushes insights to an overlays.uno ticker overlay
 ├── templates/
 │   └── index.html     # Live dashboard page
 ├── Dockerfile
@@ -116,7 +119,8 @@ uno-scoreboard-analyzer/
     ├── test_analyzer.py
     ├── test_game_log.py
     ├── test_app.py
-    └── test_web_app.py
+    ├── test_web_app.py
+    └── test_uno_ticker.py
 ```
 
 ## Running tests

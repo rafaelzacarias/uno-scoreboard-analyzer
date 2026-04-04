@@ -27,6 +27,7 @@ load_dotenv()
 POLL_INTERVAL: int = int(os.getenv("POLL_INTERVAL", "10"))
 REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "15"))
 OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+UNO_TICKER_TOKEN: str = os.getenv("UNO_TICKER_TOKEN", "")
 
 # Maximum number of scoreboard states retained in the rolling history buffer.
 # build_prompt() will use only the last PROMPT_HISTORY_LIMIT of these.
@@ -64,6 +65,8 @@ def run(url: str) -> None:
     print(f"🏁 Monitoring scoreboard: {url}")
     print(f"   Poll interval : {POLL_INTERVAL}s")
     print(f"   Model         : {OPENAI_MODEL}")
+    if UNO_TICKER_TOKEN:
+        print("   Ticker overlay: configured")
     print("   Press Ctrl+C to stop.\n")
 
     previous: Optional[ScoreboardState] = None
@@ -92,6 +95,7 @@ def run(url: str) -> None:
                         changes,
                         history=history if history else None,
                         model=OPENAI_MODEL,
+                        uno_ticker_token=UNO_TICKER_TOKEN or None,
                     )
                     print(f"\n💡 Insight: {insight}\n")
                 except Exception as exc:

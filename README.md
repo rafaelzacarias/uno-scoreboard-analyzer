@@ -10,15 +10,18 @@ Real-time handball game analyzer that monitors a [overlays.uno](https://app.over
 >
 > | Resource | Purpose |
 > |----------|---------|
-> | **Azure OpenAI** (Cognitive Services) | Hosts a `gpt-4o-mini` model deployment so you don't need an external OpenAI key |
+> | **Azure OpenAI** (Cognitive Services) | Hosts a `gpt-4o-mini` model deployment — *only created when `azureOpenAiEndpoint`/`azureOpenAiKey` are not supplied* |
 > | **Azure Container Instance** | Runs the scoreboard analyzer + live web dashboard on port 8080 |
 >
 > **Parameters you need to set:**
 >
-> | Parameter | Description |
-> |-----------|-------------|
-> | `scoreboardUrl` | Your overlays.uno scoreboard output URL |
-> | `openaiApiKey` | *(optional)* Your own OpenAI API key. Leave blank to use the Azure OpenAI resource created by the template |
+> | Parameter | Required | Description |
+> |-----------|----------|-------------|
+> | `scoreboardUrl` | ✅ | Your overlays.uno scoreboard output URL |
+> | `openaiApiKey` | *(optional)* | Your own OpenAI API key. Leave blank to use Azure OpenAI |
+> | `azureOpenAiEndpoint` | *(optional)* | Endpoint of an **existing** Azure OpenAI resource. When provided with `azureOpenAiKey`, no new Azure OpenAI resource is created |
+> | `azureOpenAiKey` | *(optional)* | Key for the existing Azure OpenAI resource |
+> | `unoTickerToken` | *(optional)* | overlays.uno ticker overlay token — pushes insights as scrolling messages |
 >
 > The default region is **West US 2** (near Redmond, WA). After deployment, the output `dashboardUrl` gives you the live web dashboard.
 

@@ -51,12 +51,14 @@ def create_app(game_log: Optional[GameLog] = None) -> Flask:
     def api_events():  # type: ignore[return]
         log = _get_log(app)
         if log is None:
-            return jsonify({"events": [], "total": 0, "game_number": 0})
+            resp = jsonify({"events": [], "total": 0, "game_number": 0})
+            resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            return resp
 
         since = request.args.get("since", 0, type=int)
         game = request.args.get("game", None, type=int)
         events = log.get_events(since_index=since, game_number=game)
-        return jsonify(
+        resp = jsonify(
             {
                 "events": [
                     {
@@ -71,6 +73,8 @@ def create_app(game_log: Optional[GameLog] = None) -> Flask:
                 "game_number": log.game_number,
             }
         )
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        return resp
 
     @app.route("/health")
     def health():  # type: ignore[return]

@@ -166,6 +166,8 @@
     let filterType = null;
     let filterGame = null;
     let currentGameNumber = 1;
+    let renderedCount = 0;       // tracks how many filtered events are already in the DOM
+    let lastFilterKey = '';       // tracks the active filter so we know when to full-rebuild
 
     const LABELS = {
       game_start: '🏁 Game Start',
@@ -178,10 +180,14 @@
       info: 'ℹ️ Info',
     };
 
+    function currentFilterKey() {
+      return `${filterType || ''}|${filterGame || ''}`;
+    }
+
     function setFilter(type) {
       filterType = type;
       filterGame = null;
-      renderEvents();
+      forceRender();
       document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
       if (!type) document.getElementById('btnAll').classList.add('active');
       else if (type === 'insight') document.getElementById('btnInsights').classList.add('active');
@@ -191,33 +197,68 @@
     function filterCurrentGame() {
       filterType = null;
       filterGame = currentGameNumber;
-      renderEvents();
+      forceRender();
       document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
       document.getElementById('btnCurrentGame').classList.add('active');
     }
 
-    function renderEvents() {
-      const container = document.getElementById('events');
-      const empty = document.getElementById('emptyState');
+    function getFiltered() {
       let filtered = allEvents;
       if (filterType) filtered = filtered.filter(e => e.type === filterType);
       if (filterGame) filtered = filtered.filter(e => e.game_number === filterGame);
+      return filtered;
+    }
 
-      if (filtered.length === 0) {
-        container.innerHTML = '';
-        container.appendChild(empty);
-        empty.style.display = 'block';
+    function buildEventHtml(e) {
+      return `<div class="event ${e.type}">` +
+        `<span class="ts">${e.timestamp}</span>` +
+        `<span class="badge ${e.type}">${LABELS[e.type] || e.type}</span>` +
+        `<span class="msg">${escapeHtml(e.message)}</span>` +
+        `</div>`;
+    }
+
+    /** Full DOM rebuild — used when filters change. */
+    function forceRender() {
+      lastFilterKey = currentFilterKey();
+      renderedCount = 0;
+      const container = document.getElementById('events');
+      container.innerHTML = '';
+      appendNewEvents();
+    }
+
+    /** Only append events that haven't been rendered yet. */
+    function appendNewEvents() {
+      const fk = currentFilterKey();
+      if (fk !== lastFilterKey) { forceRender(); return; }
+
+      const container = document.getElementById('events');
+      const filtered = getFiltered();
+
+      if (filtered.length === 0 && renderedCount === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <p style="font-size:2rem;">⏳</p>
+            <p>Waiting for scoreboard events…</p>
+          </div>`;
         return;
       }
-      empty.style.display = 'none';
 
-      container.innerHTML = filtered.map(e => `
-        <div class="event ${e.type}">
-          <span class="ts">${e.timestamp}</span>
-          <span class="badge ${e.type}">${LABELS[e.type] || e.type}</span>
-          <span class="msg">${escapeHtml(e.message)}</span>
-        </div>
-      `).join('');
+      // Remove empty-state placeholder if present and we now have events
+      if (renderedCount === 0 && filtered.length > 0) {
+        container.innerHTML = '';
+      }
+
+      const newEvents = filtered.slice(renderedCount);
+      if (newEvents.length === 0) return;
+
+      const fragment = document.createDocumentFragment();
+      const temp = document.createElement('div');
+      for (const e of newEvents) {
+        temp.innerHTML = buildEventHtml(e);
+        fragment.appendChild(temp.firstChild);
+      }
+      container.appendChild(fragment);
+      renderedCount = filtered.length;
 
       container.scrollTop = container.scrollHeight;
     }
@@ -229,20 +270,29 @@
     }
 
     async function poll() {
+      let data;
       try {
-        const resp = await fetch(`/api/events?since=${lastIndex}`);
-        const data = await resp.json();
+        const resp = await fetch(`/api/events?since=${lastIndex}&_t=${Date.now()}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        data = await resp.json();
+      } catch (err) {
+        console.error('Poll fetch error:', err);
+        document.getElementById('statusText').textContent = 'Connection lost – retrying…';
+        return;
+      }
+
+      try {
         if (data.events && data.events.length > 0) {
           allEvents = allEvents.concat(data.events);
           lastIndex = data.total;
-          renderEvents();
         }
         currentGameNumber = data.game_number || 1;
         document.getElementById('gameBanner').textContent = `Game #${currentGameNumber}`;
         document.getElementById('statusText').textContent =
           `Live · ${allEvents.length} events · Game #${currentGameNumber}`;
-      } catch {
-        document.getElementById('statusText').textContent = 'Connection lost – retrying…';
+        appendNewEvents();
+      } catch (err) {
+        console.error('Render error:', err);
       }
     }
 

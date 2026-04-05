@@ -74,7 +74,7 @@ def get_insight(
     current: ScoreboardState,
     changes: list[str],
     history: Optional[list[ScoreboardState]] = None,
-    model: str = "gpt-4o-mini",
+    model: str = "",
     client: Optional[OpenAI] = None,
     uno_ticker_token: Optional[str] = None,
 ) -> str:
@@ -89,7 +89,8 @@ def get_insight(
     history:
         Optional list of previous states for additional context.
     model:
-        OpenAI model identifier to use.
+        OpenAI model identifier to use.  Falls back to the ``OPENAI_MODEL``
+        environment variable, then ``gpt-5.4-mini``.
     client:
         Optional pre-configured :class:`openai.OpenAI` instance. If omitted,
         one is created automatically using the ``OPENAI_API_KEY`` environment
@@ -109,6 +110,9 @@ def get_insight(
     openai.OpenAIError
         If the API call fails.
     """
+    if not model:
+        model = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+
     if client is None:
         client = OpenAI()
 

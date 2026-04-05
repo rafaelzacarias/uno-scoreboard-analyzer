@@ -11,7 +11,7 @@ Required environment variables:
 Optional Azure OpenAI variables (used instead of OPENAI_API_KEY when set):
     AZURE_OPENAI_ENDPOINT    – e.g. https://<resource>.openai.azure.com
     AZURE_OPENAI_KEY         – key for the Azure OpenAI resource
-    AZURE_OPENAI_DEPLOYMENT  – deployment name (defaults to gpt-4o-mini)
+    AZURE_OPENAI_DEPLOYMENT  – deployment name (defaults to gpt-5.4-mini)
     AZURE_OPENAI_API_VERSION – API version (defaults to 2024-12-01-preview)
 """
 
@@ -37,7 +37,7 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 POLL_INTERVAL: int = int(os.getenv("POLL_INTERVAL", "10"))
 REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "15"))
-OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 WEB_PORT: int = int(os.getenv("WEB_PORT", "8080"))
 UNO_TICKER_TOKEN: str = os.getenv("UNO_TICKER_TOKEN", "")
 MAX_HISTORY_SIZE: int = 20

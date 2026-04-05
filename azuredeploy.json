@@ -2,7 +2,7 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
-    "description": "One-click deployment for the UNO Scoreboard Analyzer. Optionally provisions an Azure OpenAI resource with a gpt-4o-mini model deployment and an Azure Container Instance running the analyzer + live web dashboard."
+    "description": "One-click deployment for the UNO Scoreboard Analyzer. Optionally provisions an Azure OpenAI resource with a gpt-5.4-mini model deployment and an Azure Container Instance running the analyzer + live web dashboard."
   },
   "parameters": {
     "scoreboardUrl": {
@@ -63,11 +63,12 @@
     },
     "openaiModelName": {
       "type": "string",
-      "defaultValue": "gpt-4o-mini",
+      "defaultValue": "gpt-5.4-mini",
       "metadata": {
         "description": "The OpenAI model to deploy in Azure OpenAI (only used when this template provisions a new Azure OpenAI resource)."
       },
       "allowedValues": [
+        "gpt-5.4-mini",
         "gpt-4o-mini",
         "gpt-4o",
         "gpt-4"

@@ -26,7 +26,7 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 POLL_INTERVAL: int = int(os.getenv("POLL_INTERVAL", "10"))
 REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "15"))
-OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 UNO_TICKER_TOKEN: str = os.getenv("UNO_TICKER_TOKEN", "")
 
 # Maximum number of scoreboard states retained in the rolling history buffer.

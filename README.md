@@ -10,7 +10,7 @@ Real-time handball game analyzer that monitors a [overlays.uno](https://app.over
 >
 > | Resource | Purpose |
 > |----------|---------|
-> | **Azure OpenAI** (Cognitive Services) | Hosts a `gpt-4o-mini` model deployment — *only created when `azureOpenAiEndpoint`/`azureOpenAiKey` are not supplied* |
+> | **Azure OpenAI** (Cognitive Services) | Hosts a `gpt-5.4-mini` model deployment — *only created when `azureOpenAiEndpoint`/`azureOpenAiKey` are not supplied* |
 > | **Azure Container Instance** | Runs the scoreboard analyzer + live web dashboard on port 8080 |
 >
 > **Parameters you need to set:**
@@ -90,10 +90,10 @@ All options can be set in a `.env` file (copy from `.env.example`):
 |----------|---------|-------------|
 | `SCOREBOARD_URL` | *(required for `app.py`)* | overlays.uno output URL |
 | `OPENAI_API_KEY` | | Your OpenAI API key (option A) |
-| `OPENAI_MODEL` | `gpt-4o-mini` | Model used for generating insights |
+| `OPENAI_MODEL` | `gpt-5.4-mini` | Model used for generating insights |
 | `AZURE_OPENAI_ENDPOINT` | | Azure OpenAI endpoint (option B – takes priority) |
 | `AZURE_OPENAI_KEY` | | Azure OpenAI key |
-| `AZURE_OPENAI_DEPLOYMENT` | `gpt-4o-mini` | Azure OpenAI deployment name |
+| `AZURE_OPENAI_DEPLOYMENT` | `gpt-5.4-mini` | Azure OpenAI deployment name |
 | `AZURE_OPENAI_API_VERSION` | `2024-12-01-preview` | Azure OpenAI API version |
 | `POLL_INTERVAL` | `10` | Seconds between scoreboard checks |
 | `REQUEST_TIMEOUT` | `15` | HTTP request timeout in seconds |
